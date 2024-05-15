@@ -63,14 +63,13 @@ def get_conversational_chain():
     return chain
 
 #This function takes a user question, finds the documents most similar to the question, and generates a response. 
-# The response is then printed to the console and displayed in the Streamlit app.
+# The response is then displayed in the Streamlit app.
 def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
     chain = get_conversational_chain()
     response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
-    print(response)
     st.write("Reply: ", response["output_text"])
 
  #This function sets up the Streamlit app, takes user input for a website URL or a PDF file, 
