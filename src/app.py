@@ -9,32 +9,45 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+from PyPDF2 import PdfReader
+from io import BytesIO
 
-#The script first loads environment variables using dotenv, and configures the Google Generative AI with the API key.
+#Load environment variables and configure Google's Generative AI with an API key.
 load_dotenv()
 os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-#The get_vectorstore_from_url function takes a URL as input, loads the webpage content, splits it into chunks, 
-#and creates a FAISS vector store from these chunks. This vector store is then saved locally.
+#This function takes a URL as input, loads the text from the website, splits the text into chunks, creates embeddings for these chunks, 
+# and stores these embeddings in a vector store. It returns the vector store.
 def get_vectorstore_from_url(url):
-    # get the text in document form
     loader = WebBaseLoader(url)
-    document = loader.load()
-    
-    # split the document into chunks
+    documents = [Document(text) for text in loader.load()]
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
-    document_chunks = text_splitter.split_documents(document)
-    
-    # create a vectorstore from the chunks
+    document_chunks = text_splitter.split_documents([doc.page_content for doc in documents])
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     vector_store = FAISS.from_documents(document_chunks, embeddings)
     vector_store.save_local("faiss_index")
-
     return vector_store
 
-#The get_conversational_chain function sets up a conversational model using Google's Generative AI. 
-# It uses a prompt template for the model to generate responses.
+#Define a Document class to represent a document with text content and metadata.
+class Document:
+    def __init__(self, text):
+        self.page_content = text
+        self.metadata = {}
+
+#This function is similar to get_vectorstore_from_url, but it takes a string of text as input instead of a URL. 
+# It's used for processing text from PDF documents.
+def get_vectorstore_from_text(text):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    document = Document(text)
+    document_chunks = text_splitter.split_documents([document])
+    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
+    vector_store = FAISS.from_documents(document_chunks, embeddings)
+    vector_store.save_local("faiss_index")
+    return vector_store
+
+#This function sets up a conversational model and a question-answering chain. 
+# The model is configured with a prompt template that instructs it to answer questions based on the provided context.
 def get_conversational_chain():
     prompt_template = """
     Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
@@ -44,36 +57,24 @@ def get_conversational_chain():
 
     Answer:
     """
-
-    model = ChatGoogleGenerativeAI(model="gemini-pro",
-                             temperature=0.3)
-
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template = prompt_template, input_variables = ["context", "question"])
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
-
     return chain
 
-#The user_input function takes a user's question as input, loads the previously saved FAISS vector store, 
-# and performs a similarity search on the user's question. 
-# It then uses the conversational chain to generate a response based on the most similar documents found in the vector store.
+#This function takes a user question, finds the documents most similar to the question, and generates a response. 
+# The response is then printed to the console and displayed in the Streamlit app.
 def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
-    
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
-
     chain = get_conversational_chain()
-
-    response = chain(
-        {"input_documents":docs, "question": user_question}
-        , return_only_outputs=True)
-
+    response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
     print(response)
     st.write("Reply: ", response["output_text"])
 
-#The main function sets up the Streamlit interface. It provides a text input for the user to enter a website URL and their question. 
-# If a vector store for the given URL doesn't exist in the session state, it calls get_vectorstore_from_url to create one. 
-# It then calls user_input to generate a response to the user's question.
+ #This function sets up the Streamlit app, takes user input for a website URL or a PDF file, 
+ # processes the text and creates a vector store, takes user queries, generates responses, and displays the responses in the app.
 def main():
     st.set_page_config(page_title="Chat with websites", page_icon="🤖")
     st.title("Chat with websites")
@@ -81,15 +82,21 @@ def main():
     with st.sidebar:
         st.header("Settings")
         website_url = st.text_input("Website URL")
+        uploaded_file = st.file_uploader("Upload PDF", type=['pdf'])
 
-    if website_url is None or website_url == "":
-        st.info("Please enter a website URL")
-
+    if website_url is None or website_url == "" and uploaded_file is None:
+        st.info("Please enter a website URL or upload a PDF")
     else:
         if "vector_store" not in st.session_state:
-            st.session_state.vector_store = get_vectorstore_from_url(website_url)    
+            if website_url is not None and website_url != "":
+                st.session_state.vector_store = get_vectorstore_from_url(website_url)
+            elif uploaded_file is not None:
+                pdf_file = PdfReader(uploaded_file)
+                text = ""
+                for page in pdf_file.pages:
+                    text += page.extract_text()
+                st.session_state.vector_store = get_vectorstore_from_text(text)
 
-        # user input
         user_query = st.text_input("Type your message here...")
         if user_query is not None and user_query != "":
             user_input(user_query)
