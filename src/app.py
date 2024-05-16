@@ -60,7 +60,13 @@ def get_conversational_chain():
     model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template = prompt_template, input_variables = ["context", "question"])
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
-    return chain
+
+    # Add a general knowledge AI model
+    general_knowledge_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    general_knowledge_prompt = PromptTemplate(template = "{context}\n{question}\n\nAnswer:", input_variables = ["context", "question"])
+    general_knowledge_chain = load_qa_chain(general_knowledge_model, chain_type="stuff", prompt=general_knowledge_prompt)
+
+    return chain, general_knowledge_chain
 
 #This function takes a user question, finds the documents most similar to the question, and generates a response. 
 # The response is then displayed in the Streamlit app.
@@ -68,8 +74,17 @@ def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
-    chain = get_conversational_chain()
+    chain, general_knowledge_chain = get_conversational_chain()
     response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
+
+    # If the answer is not available in the context, use the AI model's own knowledge/training
+    if response["output_text"] == "Answer is not available in the context":
+        response = general_knowledge_chain({"input_documents": [], "question": user_question}, return_only_outputs=True)
+
+    # If the general knowledge chain also doesn't have the answer, provide a default response
+    if response["output_text"] == "Answer is not available in the context":
+        response["output_text"] = "I'm sorry, I don't have the information you're looking for."
+
     st.write("Reply: ", response["output_text"])
 
  #This function sets up the Streamlit app, takes user input for a website URL or a PDF file, 
