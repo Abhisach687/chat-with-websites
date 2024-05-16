@@ -10,7 +10,7 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
-from io import BytesIO
+
 
 #Load environment variables and configure Google's Generative AI with an API key.
 load_dotenv()
@@ -75,8 +75,8 @@ def user_input(user_question):
  #This function sets up the Streamlit app, takes user input for a website URL or a PDF file, 
  # processes the text and creates a vector store, takes user queries, generates responses, and displays the responses in the app.
 def main():
-    st.set_page_config(page_title="Chat with websites", page_icon="🤖")
-    st.title("Chat with websites")
+    st.set_page_config(page_title="Chatbot", page_icon="🤖")
+    st.title("Chatbot")
 
     with st.sidebar:
         st.header("Settings")
