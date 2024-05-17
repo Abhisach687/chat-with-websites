@@ -11,7 +11,6 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 
-
 #Load environment variables and configure Google's Generative AI with an API key.
 load_dotenv()
 os.getenv("GOOGLE_API_KEY")
@@ -27,7 +26,7 @@ def get_vectorstore_from_url(url):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     vector_store = FAISS.from_documents(document_chunks, embeddings)
     vector_store.save_local("faiss_index")
-    return vector_store
+    return document_chunks, embeddings
 
 #Define a Document class to represent a document with text content and metadata.
 class Document:
@@ -44,7 +43,7 @@ def get_vectorstore_from_text(text):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     vector_store = FAISS.from_documents(document_chunks, embeddings)
     vector_store.save_local("faiss_index")
-    return vector_store
+    return document_chunks, embeddings
 
 #This function sets up a conversational model and a question-answering chain. 
 # The model is configured with a prompt template that instructs it to answer questions based on the provided context.
@@ -71,8 +70,8 @@ def get_conversational_chain():
 #This function takes a user question, finds the documents most similar to the question, and generates a response. 
 # The response is then displayed in the Streamlit app.
 def user_input(user_question):
-    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    document_chunks, embeddings = st.session_state.vector_store
+    new_db = FAISS.from_documents(document_chunks, embeddings)
     docs = new_db.similarity_search(user_question)
     chain, general_knowledge_chain = get_conversational_chain()
     response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
