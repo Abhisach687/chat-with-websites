@@ -8,3 +8,4 @@ beautifulsoup4==4.12.2
 google-generativeai
 langchain_google_genai
 faiss-cpu
+PyPDF2 
