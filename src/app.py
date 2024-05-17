@@ -77,13 +77,17 @@ def user_input(user_question):
     chain, general_knowledge_chain = get_conversational_chain()
     response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
 
+    # List of greetings the bot can recognize and respond to
+    greetings = ["hi", "hello", "hey", "greetings", "good day", "Namaste", "Hola", "Bonjour", "Ciao", "Salut", "Hallo", "Konnichiwa", "Ni Hao", "Salaam", "Shalom", "Sawubona", "Zdravstvuyte", "Merhaba", "Privet", "Aloha", "Guten Tag", "Olá", "Hej", "Hei", "Hej", "Hoi"]
+
+    # If the user's input is a greeting, return a greeting
+    if user_question.lower() in greetings:
+        st.write("Reply: Hello! How can I assist you today?")
+        return
+
     # If the answer is not available in the context, use the AI model's own knowledge/training
     if response["output_text"] == "Answer is not available in the context":
         response = general_knowledge_chain({"input_documents": [], "question": user_question}, return_only_outputs=True)
-
-    # If the general knowledge chain also doesn't have the answer, provide a default response
-    if response["output_text"] == "Answer is not available in the context":
-        response["output_text"] = "I'm sorry, I don't have the information you're looking for."
 
     st.write("Reply: ", response["output_text"])
 
