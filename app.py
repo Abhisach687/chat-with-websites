@@ -97,19 +97,20 @@ def main():
     with st.sidebar:
         st.header("Settings")
         website_url = st.text_input("Website URL")
-        uploaded_file = st.file_uploader("Upload PDF", type=['pdf'])
+        uploaded_files = st.file_uploader("Upload PDFs", type=['pdf'], accept_multiple_files=True)
 
-    if website_url is None or website_url == "" and uploaded_file is None:
+    if (website_url is None or website_url == "") and not uploaded_files:
         st.info("Please enter a website URL or upload a PDF")
     else:
         if "vector_store" not in st.session_state:
             if website_url is not None and website_url != "":
                 st.session_state.vector_store = get_vectorstore_from_url(website_url)
-            elif uploaded_file is not None:
-                pdf_file = PdfReader(uploaded_file)
+            elif uploaded_files:
                 text = ""
-                for page in pdf_file.pages:
-                    text += page.extract_text()
+                for uploaded_file in uploaded_files:
+                    pdf_file = PdfReader(uploaded_file)
+                    for page in pdf_file.pages:
+                        text += page.extract_text()
                 st.session_state.vector_store = get_vectorstore_from_text(text)
 
         user_query = st.text_input("Type your message here...")
